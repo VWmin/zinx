@@ -1,1 +1,3 @@
-module "github.com/vwmin/zinx"
+module github.com/vwmin/zinx
+
+go 1.15

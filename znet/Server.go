@@ -1,9 +1,9 @@
-package net
+package znet
 
 import (
+	"errors"
 	"fmt"
-	"github.com/vwmin/zinx/iface"
-	"io"
+	"github.com/vwmin/zinx/ziface"
 	"net"
 )
 
@@ -17,6 +17,17 @@ type Server struct {
 	IP string
 	//服务器监听的端口
 	Port int
+}
+
+// 定义当前客户端连接所绑定的handleAPI，回显功能 fixme：后续需要自定义
+func CallBackToClient(conn *net.TCPConn, data []byte, size int) error {
+	fmt.Println("[Conn handle] CallBackToClient ... ")
+	if _, err := conn.Write(data[:size]); err != nil {
+		fmt.Println("write back data err, ", err)
+		return errors.New("CallBackToClient error")
+	}
+
+	return nil
 }
 
 //启动
@@ -40,6 +51,8 @@ func (server *Server) Start() {
 		}
 
 		fmt.Println("start zinx sever success, [", server.Name, "] listening...")
+		var cid uint32
+		cid = 0
 
 		// 3.阻塞地等待客户端连接，处理客户端连接业务（读写）
 		for true {
@@ -50,24 +63,13 @@ func (server *Server) Start() {
 				continue
 			}
 
-			//使用conn处理业务
-			//当前只做一个最基本的最大512字节长度的回显业务
-			go func(conn net.Conn) {
-				for true {
-					buf := make([]byte, 512)
-					n, err := conn.Read(buf)
-					if err != nil && err != io.EOF {
-						fmt.Println("read buf error: ", err)
-						continue
-					}
+			// 创建自己的Connection对象
+			dealConn := NewConnection(conn, cid, CallBackToClient)
+			cid++
 
-					//回显功能
-					if _, err := conn.Write(buf[:n]); err != nil {
-						fmt.Println("write back error: ", err)
-						continue
-					}
-				}
-			}(conn)
+			//使用conn处理业务
+			go dealConn.Start()
+
 		}
 	}()
 
@@ -90,7 +92,7 @@ func (server *Server) Server() {
 }
 
 //初始化server的方法，返回一个抽象层的Server
-func NewServer(name string) iface.IServer{
+func NewServer(name string) ziface.IServer {
 	s := &Server{
 		Name:      name,
 		IPVersion: "tcp4",
