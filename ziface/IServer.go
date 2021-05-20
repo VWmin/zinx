@@ -4,8 +4,13 @@ package ziface
 type IServer interface {
 	//启动
 	Start()
+
 	//停止
 	Stop()
+
 	//运行
 	Server()
+
+	// 给当前的服务注册一个路由，供连接处理使用
+	AddRouter(router IRouter)
 }
