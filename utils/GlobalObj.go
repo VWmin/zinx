@@ -72,7 +72,7 @@ func init() {
 		Name:           "ZinxServerApp",
 		MaxCoon:        1000,
 		MaxPackageSize: 4096,
-		Version:        "V0.4",
+		//Version:        "V0.5",
 	}
 
 	// 尝试读取配置文件

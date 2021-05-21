@@ -19,8 +19,8 @@ type IConnection interface {
 	// 获取客户端的ip:port
 	GetRemoteAddr() net.Addr
 
-	// 发送数据给客户端
-	Send(data []byte) error
+	// 发送消息给客户端
+	SendMsg(msgId uint32, data []byte) error
 }
 
 // 定义一个处理连接业务的方法 (连接，内容，长度)

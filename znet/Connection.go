@@ -1,8 +1,9 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
-	"github.com/vwmin/zinx/utils"
+	"io"
 	"net"
 )
 import "github.com/vwmin/zinx/ziface"
@@ -33,18 +34,39 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 
 	for true {
-		// 读数据到缓冲区
-		buf := make([]byte, utils.GlobalObject.MaxPackageSize)
+		dataPack := NewDataPack()
 
-		if _, err := c.Conn.Read(buf); err != nil {
-			fmt.Println("recv buf err, err: ", err)
+		// 读出消息头字节
+		msgHeadBuf := make([]byte, dataPack.GetHeadLen())
+		if _, err := io.ReadFull(c.GetTCPConnection(), msgHeadBuf); err != nil {
+			fmt.Println("recv buf err, ", err)
 			continue
 		}
+
+		// 拆包为消息对象
+		msgHead, err := dataPack.Unpack(msgHeadBuf)
+		if err != nil {
+			fmt.Println("unpack err, ", err)
+			continue
+		}
+
+		// 如果有消息体则读出
+		var dataBuf []byte
+		if msgHead.GetDataLen() > 0 {
+			dataBuf = make([]byte, msgHead.GetDataLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), dataBuf); err != nil {
+				fmt.Println("read data err, ", err)
+				continue
+			}
+		}
+
+		// 消息体字节写入消息对象
+		msgHead.SetData(dataBuf)
 
 		// 得到当前连接的Request请求数据
 		req := Request{
 			conn: c,
-			data: buf,
+			msg: msgHead,
 		}
 
 		go func(request ziface.IRequest) {
@@ -97,9 +119,23 @@ func (c *Connection) GetRemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
+// 发送消息给客户端
+func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	if c.isClosed {
+		return errors.New("connection already closed while sending msg")
+	}
+	message := NewMessage(msgId, data)
+	packed, err := NewDataPack().Pack(message)
+	if err != nil {
+		return err
+	}
+	return c.Send(packed)
+}
+
 // 发送数据给客户端
 func (c *Connection) Send(data []byte) error {
-	return nil
+	_, err := c.Conn.Write(data)
+	return err
 }
 
 // 连接构造方法
