@@ -2,6 +2,7 @@ package znet
 
 import (
 	"fmt"
+	"github.com/vwmin/zinx/utils"
 	"github.com/vwmin/zinx/ziface"
 	"net"
 )
@@ -22,7 +23,8 @@ type Server struct {
 
 //启动
 func (server *Server) Start() {
-	fmt.Printf("[Start] Server Listenner at IP: %s, Port: %d, is starting \n", server.IP, server.Port)
+
+	fmt.Printf("[Start] Server %s Listenner at IP: %s, Port: %d, is starting \n", server.Name, server.IP, server.Port)
 
 	// 使用一个Go程承载循环监听业务，避免阻塞在此
 	go func() {
@@ -89,11 +91,14 @@ func (server *Server) AddRouter(router ziface.IRouter) {
 
 //初始化server的方法，返回一个抽象层的Server
 func NewServer(name string) ziface.IServer {
+	if name == "" {
+		name = utils.GlobalObject.Name
+	}
 	s := &Server{
 		Name:      name,
 		IPVersion: "tcp4",
-		IP:        "0.0.0.0",
-		Port:      8999,
+		IP:        utils.GlobalObject.Host,
+		Port:      utils.GlobalObject.TcpPort,
 		Router:    nil,
 	}
 	return s
