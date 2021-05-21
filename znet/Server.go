@@ -11,14 +11,18 @@ import (
 type Server struct {
 	//服务器名称
 	Name string
+
 	//服务器绑定的IP版本
 	IPVersion string
+
 	//服务器监听的IP
 	IP string
+
 	//服务器监听的端口
 	Port int
-	//Router，注册到连接对应的业务 fixme：后续需要多个Router
-	Router ziface.IRouter
+
+	// 多路由管理器
+	Handler ziface.IMessageHandler
 }
 
 //启动
@@ -56,7 +60,7 @@ func (server *Server) Start() {
 			}
 
 			// 创建自己的Connection对象
-			dealConn := NewConnection(conn, cid, server.Router)
+			dealConn := NewConnection(conn, cid, server.Handler)
 			cid++
 
 			//使用conn处理业务
@@ -84,8 +88,8 @@ func (server *Server) Server() {
 }
 
 // 添加一个路由
-func (server *Server) AddRouter(router ziface.IRouter) {
-	server.Router = router
+func (server *Server) AddRouter(msgId uint32, router ziface.IRouter) {
+	server.Handler.AddRouter(msgId, router)
 	fmt.Println("Add Router success.")
 }
 
@@ -99,7 +103,7 @@ func NewServer(name string) ziface.IServer {
 		IPVersion: "tcp4",
 		IP:        utils.GlobalObject.Host,
 		Port:      utils.GlobalObject.TcpPort,
-		Router:    nil,
+		Handler:   NewMsgHandler(),
 	}
 	return s
 }
