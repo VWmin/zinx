@@ -26,7 +26,7 @@ type Connection struct {
 	msgChan chan []byte
 
 	// 消息分发器
-	Handler ziface.IMessageHandler
+	Handler ziface.IMsgHandler
 }
 
 // 连接的读业务
@@ -70,6 +70,7 @@ func (c *Connection) StartReader() {
 		// 消息体字节写入消息对象
 		msgHead.SetData(dataBuf)
 
+		// todo: Go程数量无法控制，改为线程池 （处理业务，占用CPU maybe）
 		// 找到对应路由处理方法并执行
 		go c.Handler.DoMsgHandler(&Request{
 			conn: c,
@@ -105,13 +106,15 @@ func (c *Connection) StartWriter() {
 func (c *Connection) Start() {
 	fmt.Println("Conn Start()... ConnID = ", c.ConnID)
 
+
+	/*（阻塞等待工作，不占用CPU）*/
+
 	// 启动当前连接的读业务
 	go c.StartReader()
 
 	// 启动当前连接的写业务
 	go c.StartWriter()
 
-	// todo：启动当前连接的写业务
 }
 
 // 停止连接 结束当前连接的工作
@@ -166,8 +169,8 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 }
 
 // 连接构造方法
-func NewConnection(conn *net.TCPConn, connID uint32, handler ziface.IMessageHandler) ziface.IConnection {
-	c := &Connection{
+func NewConnection(conn *net.TCPConn, connID uint32, handler ziface.IMsgHandler) *Connection {
+	return &Connection{
 		Conn:     conn,
 		ConnID:   connID,
 		isClosed: false,
@@ -175,5 +178,4 @@ func NewConnection(conn *net.TCPConn, connID uint32, handler ziface.IMessageHand
 		exitChan: make(chan bool, 1),
 		msgChan:  make(chan []byte),
 	}
-	return c
 }

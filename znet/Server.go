@@ -22,13 +22,16 @@ type Server struct {
 	Port int
 
 	// 多路由管理器
-	Handler ziface.IMessageHandler
+	Handler ziface.IMsgHandler
 }
 
 //启动
 func (server *Server) Start() {
 
 	fmt.Printf("[Start] Server %s Listenner at IP: %s, Port: %d, is starting \n", server.Name, server.IP, server.Port)
+
+	// 开启工作池
+	server.Handler.StartWorkerPool()
 
 	// 使用一个Go程承载循环监听业务，避免阻塞在此
 	go func() {
