@@ -30,6 +30,8 @@ type Connection struct {
 
 	// conn 所属的 Serve
 	Server ziface.IServer
+
+	BaseProperties
 }
 
 // 连接的读业务

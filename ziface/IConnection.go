@@ -21,6 +21,8 @@ type IConnection interface {
 
 	// 发送消息给客户端
 	SendMsg(msgId uint32, data []byte) error
+
+	IProperties
 }
 
 // 定义一个处理连接业务的方法 (连接，内容，长度)
