@@ -13,4 +13,8 @@ type IServer interface {
 
 	// 给当前的服务注册一个路由，供连接处理使用
 	AddRouter(msgId uint32, router IRouter)
+
+	GetConnManager() IConnManager
+
+	SetConnHook(hook IConnHook)
 }

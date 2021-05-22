@@ -38,7 +38,7 @@ func NewMsgHandler() *MsgHandler {
 }
 
 // 根据消息类型 调用Router动作
-func (h *MsgHandler) DoMsgHandler(request ziface.IRequest) {
+func (h *MsgHandler) HandleMsg(request ziface.IRequest) {
 	id := request.GetRequestMsg().GetMsgId()
 	h.lock.RLock()
 	router, ok := h.apis[id]
@@ -54,6 +54,7 @@ func (h *MsgHandler) DoMsgHandler(request ziface.IRequest) {
 
 // 为消息类型注册一个Router
 func (h *MsgHandler) AddRouter(msgId uint32, router ziface.IRouter) {
+	// 其实如果不允许Server启动后添加Router的话，就没必要上锁
 	h.lock.RLock()
 	_, ok := h.apis[msgId]
 	h.lock.RUnlock()
@@ -85,7 +86,8 @@ func (h *MsgHandler) StartWorker(workerID int, taskQueue chan ziface.IRequest) {
 		select {
 		// 消息到达
 		case request := <-taskQueue:
-			h.DoMsgHandler(request)
+			fmt.Println("Worker ID = ", workerID, " dealing request...")
+			h.HandleMsg(request)
 		}
 	}
 }

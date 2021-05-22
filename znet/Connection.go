@@ -27,13 +27,16 @@ type Connection struct {
 
 	// 消息分发器
 	Handler ziface.IMsgHandler
+
+	// conn 所属的 Serve
+	Server ziface.IServer
 }
 
 // 连接的读业务
 func (c *Connection) StartReader() {
-	fmt.Println("ConnID = ", c.ConnID, " Reader Goroutine is running...")
+	fmt.Println("Conn ID = ", c.ConnID, " Reader Goroutine is running...")
 
-	defer fmt.Println("ConnID = ", c.ConnID, " Reader is Exited, remote addr is ", c.Conn.RemoteAddr().String())
+	defer fmt.Println("Conn ID = ", c.ConnID, " Reader is Exited, remote addr is ", c.Conn.RemoteAddr().String())
 	defer c.Stop()
 
 	for true {
@@ -70,9 +73,9 @@ func (c *Connection) StartReader() {
 		// 消息体字节写入消息对象
 		msgHead.SetData(dataBuf)
 
-		// todo: Go程数量无法控制，改为线程池 （处理业务，占用CPU maybe）
+		// Go程数量无法控制，改为线程池 （处理业务，占用CPU maybe）
 		// 找到对应路由处理方法并执行
-		go c.Handler.DoMsgHandler(&Request{
+		c.Handler.Submit(&Request{
 			conn: c,
 			msg:  msgHead,
 		})
@@ -81,9 +84,9 @@ func (c *Connection) StartReader() {
 
 // 连接的写业务
 func (c *Connection) StartWriter() {
-	fmt.Println("ConnID = ", c.ConnID, " Writer Goroutine is running...")
+	fmt.Println("Conn ID = ", c.ConnID, " Writer Goroutine is running...")
 
-	defer fmt.Println("ConnID = ", c.ConnID, " Writer is Exited, remote addr is ", c.Conn.RemoteAddr().String())
+	defer fmt.Println("Conn ID = ", c.ConnID, " Writer is Exited, remote addr is ", c.Conn.RemoteAddr().String())
 
 	// 阻塞等待channel消息，写给client
 	for true {
@@ -104,8 +107,7 @@ func (c *Connection) StartWriter() {
 
 // 启动连接 让当前的连接准备开始工作
 func (c *Connection) Start() {
-	fmt.Println("Conn Start()... ConnID = ", c.ConnID)
-
+	fmt.Println("Conn ID = ", c.ConnID, " Conn Start()... ")
 
 	/*（阻塞等待工作，不占用CPU）*/
 
@@ -119,7 +121,7 @@ func (c *Connection) Start() {
 
 // 停止连接 结束当前连接的工作
 func (c *Connection) Stop() {
-	fmt.Println("Conn Stop()... ConnID = ", c.ConnID)
+	fmt.Println("Conn ID = ", c.ConnID, " Conn Stop()... ")
 
 	if c.isClosed {
 		return
@@ -128,6 +130,9 @@ func (c *Connection) Stop() {
 
 	// 告知Writer关闭
 	c.exitChan <- true
+
+	// 从ConnManager去除
+	c.Server.GetConnManager().DeleteConnection(c)
 
 	// 关闭socket连接
 	_ = c.Conn.Close()
@@ -168,14 +173,17 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	return nil
 }
 
-// 连接构造方法
-func NewConnection(conn *net.TCPConn, connID uint32, handler ziface.IMsgHandler) *Connection {
-	return &Connection{
-		Conn:     conn,
-		ConnID:   connID,
-		isClosed: false,
-		Handler:  handler,
-		exitChan: make(chan bool, 1),
-		msgChan:  make(chan []byte),
-	}
-}
+//// 连接构造方法
+//func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, handler ziface.IMsgHandler) *Connection {
+//	c := &Connection{
+//		Conn:     conn,
+//		ConnID:   connID,
+//		isClosed: false,
+//		Handler:  handler,
+//		exitChan: make(chan bool, 1),
+//		msgChan:  make(chan []byte),
+//		Server:   server,
+//	}
+//	server.GetConnManager().AddConnection(c)
+//	return c
+//}

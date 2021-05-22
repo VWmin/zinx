@@ -22,7 +22,14 @@ type Server struct {
 	Port int
 
 	// 多路由管理器
-	Handler ziface.IMsgHandler
+	RouterHandler ziface.IMsgHandler
+
+	// 连接管理器
+	ConnManager ziface.IConnManager
+}
+
+func (server *Server) GetConnManager() ziface.IConnManager {
+	return server.ConnManager
 }
 
 //启动
@@ -31,7 +38,7 @@ func (server *Server) Start() {
 	fmt.Printf("[Start] Server %s Listenner at IP: %s, Port: %d, is starting \n", server.Name, server.IP, server.Port)
 
 	// 开启工作池
-	server.Handler.StartWorkerPool()
+	server.RouterHandler.StartWorkerPool()
 
 	// 使用一个Go程承载循环监听业务，避免阻塞在此
 	go func() {
@@ -62,12 +69,17 @@ func (server *Server) Start() {
 				continue
 			}
 
-			// 创建自己的Connection对象
-			dealConn := NewConnection(conn, cid, server.Handler)
-			cid++
+			// 判断是否超出ConnManager容量
+			if server.ConnManager.Full() {
+				_ = conn.Close()
+				fmt.Println("a conn was closed due to conn size overflow.")
+				// todo: 响应给客户端
+				continue
+			}
 
-			//使用conn处理业务
-			go dealConn.Start()
+			// 创建自己的Connection对象
+			server.ConnManager.NewConnection(server, conn, cid, server.RouterHandler)
+			cid++
 
 		}
 	}()
@@ -76,7 +88,9 @@ func (server *Server) Start() {
 
 //停止
 func (server *Server) Stop() {
-	//todo：将一些服务器的资源、状态或者创建的链接，停止、回收
+	// 将一些服务器的资源、状态或者创建的链接，停止、回收
+	fmt.Println("[Stop] Server ", server.Name)
+	server.ConnManager.ClearConnections()
 }
 
 //运行
@@ -92,8 +106,12 @@ func (server *Server) Server() {
 
 // 添加一个路由
 func (server *Server) AddRouter(msgId uint32, router ziface.IRouter) {
-	server.Handler.AddRouter(msgId, router)
+	server.RouterHandler.AddRouter(msgId, router)
 	fmt.Println("Add Router success.")
+}
+
+func (server *Server) SetConnHook(hook ziface.IConnHook) {
+	server.ConnManager.SetConnHook(hook)
 }
 
 //初始化server的方法，返回一个抽象层的Server
@@ -102,11 +120,12 @@ func NewServer(name string) ziface.IServer {
 		name = utils.GlobalObject.Name
 	}
 	s := &Server{
-		Name:      name,
-		IPVersion: "tcp4",
-		IP:        utils.GlobalObject.Host,
-		Port:      utils.GlobalObject.TcpPort,
-		Handler:   NewMsgHandler(),
+		Name:          name,
+		IPVersion:     "tcp4",
+		IP:            utils.GlobalObject.Host,
+		Port:          utils.GlobalObject.TcpPort,
+		RouterHandler: NewMsgHandler(),
+		ConnManager:   NewConnManager(),
 	}
 	return s
 }
