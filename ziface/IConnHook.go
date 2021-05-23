@@ -5,7 +5,7 @@ type IConnHook interface {
 	BeforeConnStop(conn IConnection)
 }
 
-type BaseConnHook struct {}
+type BaseConnHook struct{}
 
 func (b *BaseConnHook) AfterConnStart(conn IConnection) {}
 

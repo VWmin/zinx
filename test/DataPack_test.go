@@ -74,7 +74,6 @@ func TestDataPack(t *testing.T) {
 
 	conn.Write(toSend1)
 
-
-	select{}
+	select {}
 
 }

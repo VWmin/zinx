@@ -20,5 +20,3 @@ func (r *Request) GetConnection() ziface.IConnection {
 func (r *Request) GetRequestMsg() ziface.IMessage {
 	return r.msg
 }
-
-

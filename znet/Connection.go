@@ -188,5 +188,3 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	c.msgChan <- packed
 	return nil
 }
-
-

@@ -74,5 +74,5 @@ func (dataPack *DataPack) Unpack(binaryData []byte) (ziface.IMessage, error) {
 	//	return nil, err
 	//}
 
-	return NewMessageHead(msgId,dataLen), nil
+	return NewMessageHead(msgId, dataLen), nil
 }
