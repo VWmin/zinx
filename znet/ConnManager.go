@@ -9,16 +9,20 @@ import (
 )
 
 type ConnManager struct {
-	conns map[uint32]ziface.IConnection
-	lock  sync.RWMutex
-	hook  ziface.IConnHook
+	conns    map[uint32]ziface.IConnection
+	lock     sync.RWMutex
+	hook     ziface.IConnHook
+	exitChan chan uint32
 }
 
 func NewConnManager() *ConnManager {
-	return &ConnManager{
-		conns: make(map[uint32]ziface.IConnection),
-		hook:  &BaseConnHook{},
+	m := &ConnManager{
+		conns:    make(map[uint32]ziface.IConnection),
+		hook:     &ziface.BaseConnHook{},
+		exitChan: make(chan uint32),
 	}
+	go m.listenConnStop()
+	return m
 }
 
 func (c *ConnManager) AddConnection(conn ziface.IConnection) {
@@ -27,18 +31,15 @@ func (c *ConnManager) AddConnection(conn ziface.IConnection) {
 	c.lock.Unlock()
 
 	fmt.Println("Conn ID = ", conn.GetConnectionID(), " add to ConnManager.")
-
-	c.hook.AfterConnStart(conn)
 }
 
-func (c *ConnManager) DeleteConnection(conn ziface.IConnection) {
-	c.hook.BeforeConnStop(conn)
+func (c *ConnManager) DeleteConnection(connID uint32) {
 
 	c.lock.Lock()
-	delete(c.conns, conn.GetConnectionID())
+	delete(c.conns, connID)
 	c.lock.Unlock()
 
-	fmt.Println("Conn ID = ", conn.GetConnectionID(), " removed from ConnManager.")
+	fmt.Println("Conn ID = ", connID, " removed from ConnManager.")
 }
 
 func (c *ConnManager) RetrieveConnection(connID uint32) (*ziface.IConnection, bool) {
@@ -73,16 +74,26 @@ func (c *ConnManager) ClearConnections() {
 	fmt.Println("ConnManager cleared, total = ", size)
 }
 
-// fixme: 这算严重耦合吗？
-func (c *ConnManager) NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, handler ziface.IMsgHandler) ziface.IConnection {
+func (c *ConnManager) listenConnStop() {
+	for true {
+		select {
+		case connID := <-c.exitChan:
+			c.DeleteConnection(connID)
+		}
+	}
+}
+
+func (c *ConnManager) NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, handler ziface.IReqHandler) ziface.IConnection {
 	serverConn := &Connection{
-		Conn:     conn,
-		ConnID:   connID,
-		isClosed: false,
-		Handler:  handler,
-		exitChan: make(chan bool, 1),
-		msgChan:  make(chan []byte),
-		Server:   server,
+		Conn:             conn,
+		ConnID:           connID,
+		isClosed:         false,
+		Handler:          handler,
+		exitChan:         make(chan bool, 1),
+		msgChan:          make(chan []byte),
+		Server:           server,
+		exitChan2Manager: c.exitChan,
+		hook:             c.hook,
 	}
 	serverConn.Start()
 	c.AddConnection(serverConn)

@@ -26,12 +26,18 @@ type Connection struct {
 	msgChan chan []byte
 
 	// 消息分发器
-	Handler ziface.IMsgHandler
+	Handler ziface.IReqHandler
 
 	// conn 所属的 Serve
 	Server ziface.IServer
 
+	// 用于通知ConnManager该连接退出
+	exitChan2Manager chan uint32
+
 	BaseProperties
+
+	// 连接建立后，与关闭前的hook
+	hook ziface.IConnHook
 }
 
 // 连接的读业务
@@ -77,7 +83,7 @@ func (c *Connection) StartReader() {
 
 		// Go程数量无法控制，改为线程池 （处理业务，占用CPU maybe）
 		// 找到对应路由处理方法并执行
-		c.Handler.Submit(&Request{
+		c.Handler.HandleRequest(&Request{
 			conn: c,
 			msg:  msgHead,
 		})
@@ -119,6 +125,9 @@ func (c *Connection) Start() {
 	// 启动当前连接的写业务
 	go c.StartWriter()
 
+	// 连接已启动，执行hook
+	c.hook.AfterConnStart(c)
+
 }
 
 // 停止连接 结束当前连接的工作
@@ -130,11 +139,16 @@ func (c *Connection) Stop() {
 	}
 	c.isClosed = true
 
-	// 告知Writer关闭
-	c.exitChan <- true
+	// 先从connManager去除，再执行preStop，再关闭Writer，再关闭socket，最后Reader退出
 
 	// 从ConnManager去除
-	c.Server.GetConnManager().DeleteConnection(c)
+	c.exitChan2Manager <- c.ConnID
+
+	// 即将正式关闭连接，执行hook
+	c.hook.BeforeConnStop(c)
+
+	// 告知Writer关闭
+	c.exitChan <- true
 
 	// 关闭socket连接
 	_ = c.Conn.Close()
@@ -175,17 +189,4 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	return nil
 }
 
-//// 连接构造方法
-//func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, handler ziface.IMsgHandler) *Connection {
-//	c := &Connection{
-//		Conn:     conn,
-//		ConnID:   connID,
-//		isClosed: false,
-//		Handler:  handler,
-//		exitChan: make(chan bool, 1),
-//		msgChan:  make(chan []byte),
-//		Server:   server,
-//	}
-//	server.GetConnManager().AddConnection(c)
-//	return c
-//}
+

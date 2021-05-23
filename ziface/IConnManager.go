@@ -7,20 +7,19 @@ import "net"
 以及server终止时，关闭所有连接
 */
 type IConnManager interface {
-	NewConnection(server IServer, conn *net.TCPConn, connID uint32, handler IMsgHandler) IConnection
-
-	AddConnection(conn IConnection)
-
-	DeleteConnection(conn IConnection)
-
-	RetrieveConnection(connID uint32) (*IConnection, bool)
-
 	Size() int
 
 	Full() bool
 
 	ClearConnections()
 
-	// fixme: 还是感觉这样实现不太好
 	SetConnHook(hook IConnHook)
+
+	AddConnection(conn IConnection)
+
+	DeleteConnection(connID uint32)
+
+	RetrieveConnection(connID uint32) (*IConnection, bool)
+
+	NewConnection(server IServer, conn *net.TCPConn, connID uint32, handler IReqHandler) IConnection
 }

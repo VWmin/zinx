@@ -10,7 +10,7 @@ import (
 /**
 消息处理模块的实现
 */
-type MsgHandler struct {
+type ReqHandler struct {
 	// 存放消息类型对应的router
 	apis map[uint32]ziface.IRouter
 
@@ -27,18 +27,38 @@ type MsgHandler struct {
 	workerTaskQueueSize uint
 }
 
-func NewMsgHandler() *MsgHandler {
-	return &MsgHandler{
+func NewReqHandler() *ReqHandler {
+	return &ReqHandler{
 		apis:                make(map[uint32]ziface.IRouter),
 		taskQueue:           make([]chan ziface.IRequest, utils.GlobalObject.WorkerSize),
 		workerSize:          utils.GlobalObject.WorkerSize,
 		workerTaskQueueSize: utils.GlobalObject.WorkerTaskQueueSize,
 	}
+}
 
+func (h *ReqHandler) StartRouting() {
+	// 开启工作池
+	h.StartWorkerPool()
+}
+
+func (h *ReqHandler) StopRouting() {
+	// todo 如何处理消息队列中未被加载的内容
+
+	// todo 如何分辨go程正在工作或是阻塞
+
+	// todo 如何处理正在处理req的go程
+
+	for i := 0; i < int(h.workerTaskQueueSize); i++ {
+		close(h.taskQueue[i])
+	}
 }
 
 // 根据消息类型 调用Router动作
-func (h *MsgHandler) HandleMsg(request ziface.IRequest) {
+func (h *ReqHandler) HandleRequest(request ziface.IRequest) {
+	h.Submit(request)
+}
+
+func (h *ReqHandler) doHandler(request ziface.IRequest) {
 	id := request.GetRequestMsg().GetMsgId()
 	h.lock.RLock()
 	router, ok := h.apis[id]
@@ -53,7 +73,7 @@ func (h *MsgHandler) HandleMsg(request ziface.IRequest) {
 }
 
 // 为消息类型注册一个Router
-func (h *MsgHandler) AddRouter(msgId uint32, router ziface.IRouter) {
+func (h *ReqHandler) AddRouter(msgId uint32, router ziface.IRouter) {
 	// 其实如果不允许Server启动后添加Router的话，就没必要上锁
 	h.lock.RLock()
 	_, ok := h.apis[msgId]
@@ -66,11 +86,11 @@ func (h *MsgHandler) AddRouter(msgId uint32, router ziface.IRouter) {
 	h.lock.Lock()
 	h.apis[msgId] = router
 	h.lock.Unlock()
-	fmt.Println("router have been registered to ", msgId)
+	fmt.Println("router registers to msgID: ", msgId, " success.")
 }
 
 // 开启线程池
-func (h *MsgHandler) StartWorkerPool() {
+func (h *ReqHandler) StartWorkerPool() {
 	for i := 0; i < int(h.workerSize); i++ {
 		h.taskQueue[i] = make(chan ziface.IRequest, utils.GlobalObject.WorkerTaskQueueSize)
 		// 启动当前worker，阻塞等待消息从channel传递进来
@@ -79,7 +99,7 @@ func (h *MsgHandler) StartWorkerPool() {
 }
 
 // 开启工作线程
-func (h *MsgHandler) StartWorker(workerID int, taskQueue chan ziface.IRequest) {
+func (h *ReqHandler) StartWorker(workerID int, taskQueue chan ziface.IRequest) {
 	fmt.Println("Worker ID = ", workerID, " is started...")
 
 	for true {
@@ -87,13 +107,13 @@ func (h *MsgHandler) StartWorker(workerID int, taskQueue chan ziface.IRequest) {
 		// 消息到达
 		case request := <-taskQueue:
 			fmt.Println("Worker ID = ", workerID, " dealing request...")
-			h.HandleMsg(request)
+			h.doHandler(request)
 		}
 	}
 }
 
 // 提交任务 轮询模式
-func (h *MsgHandler) Submit(request ziface.IRequest) {
+func (h *ReqHandler) Submit(request ziface.IRequest) {
 	// 提交给消息队列
 	// 尝试建立一个conn - worker的关系
 	toWorker := request.GetConnection().GetConnectionID() % uint32(h.workerSize)
